@@ -1,0 +1,107 @@
+version: '3.8'
+
+services:
+  # ======================
+  # Infrastructure
+  # ======================
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:6.2.1
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+    networks:
+      - monitoring-net
+
+  kafka:
+    image: confluentinc/cp-kafka:6.2.1
+    container_name: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: |
+        PLAINTEXT://kafka:9092
+        PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    depends_on:
+      - zookeeper
+    networks:
+      - monitoring-net
+
+  postgres:
+    image: postgres:latest
+    restart: always
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: weatherdb
+    ports:
+      - "5432:5432"
+    networks:
+      - monitoring-net
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks:
+      - monitoring-net
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - monitoring-net
+
+  # ======================
+  # Application Services
+  # ======================
+
+  producer:
+    build: ./producer
+    container_name: weather_producer
+    depends_on:
+      - kafka
+    environment:
+      - KAFKA_BROKER=kafka:9092
+    ports:
+      - "8003:8003"
+    networks:
+      - monitoring-net
+    command: ["python", "app.py"]
+
+  consumer:
+    build: ./consumer
+    container_name: weather_consumer
+    depends_on:
+      - kafka
+      - postgres
+    environment:
+      - KAFKA_BROKER=kafka:9092
+      - KAFKA_TOPIC=weather
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=weatherdb
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+    ports:
+      - "8001:8001"
+    networks:
+      - monitoring-net
+    command: ["python", "app.py"]
+
+networks:
+  monitoring-net:
+    driver: bridge
+

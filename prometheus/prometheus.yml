@@ -1,0 +1,12 @@
+global:
+  scrape_interval: 10s
+
+scrape_configs:
+  - job_name: 'weather_producer'
+    static_configs:
+      - targets: ['producer:8003']   # Producer metrics port
+
+  - job_name: 'weather_consumer'
+    static_configs:
+      - targets: ['consumer:8001']   # Consumer metrics port
+
