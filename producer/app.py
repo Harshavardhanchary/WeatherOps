@@ -5,6 +5,12 @@ import requests
 from kafka import KafkaProducer
 from kafka.errors import NoBrokersAvailable
 from prometheus_client import start_http_server, Counter
+from dotenv import load_dotenv  # <-- Added to load .env variables
+
+# -----------------------------
+# Load environment variables
+# -----------------------------
+load_dotenv()  # Loads variables from .env file
 
 # -----------------------------
 # Environment Variables
@@ -12,12 +18,17 @@ from prometheus_client import start_http_server, Counter
 KAFKA_SERVER = os.getenv("KAFKA_BROKER", "kafka:9092")
 KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "weather")
 CITY = os.getenv("CITY", "Hyderabad")
-API_KEY = os.getenv("API_KEY", "")  # Replace with your API key
+API_KEY = os.getenv("API_KEY")  # Must be in your .env
+FETCH_INTERVAL = int(os.getenv("FETCH_INTERVAL", 30))  # Optional variable
+
+# Validate required variables
+if not API_KEY:
+    raise ValueError("❌ Missing API_KEY. Please set it in your .env file.")
 
 # -----------------------------
 # Prometheus Metrics
 # -----------------------------
-start_http_server(8003)  # Expose metrics on port 8000
+start_http_server(8003)  # Expose metrics on port 8003
 messages_sent = Counter('weather_messages_sent_total', 'Total weather messages sent to Kafka')
 
 # -----------------------------
@@ -59,10 +70,10 @@ while True:
 
         producer.send(KAFKA_TOPIC, value=data.encode('utf-8'))
         messages_sent.inc()  # Increment Prometheus metric
-        print(f"Sent: {data}")
+        print(f"✅ Sent: {data}")
 
     except Exception as e:
-        print(f"Error fetching/sending data: {e}")
+        print(f"❌ Error fetching/sending data: {e}")
 
-    time.sleep(30)  # Fetch every 30 seconds
+    time.sleep(FETCH_INTERVAL)  # Controlled by .env
 
